@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPQアンケートシステム</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP','Hiragino Sans',sans-serif;background:#fafbfc;color:#1a1a2e;min-height:100vh}
+.wrap{max-width:660px;margin:0 auto;padding:24px 16px}
+.card{background:#fff;border-radius:10px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e8eaed;margin-bottom:16px}
+.btn-p{background:#4f6df5;color:#fff;border:none;border-radius:6px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-p:disabled{opacity:.4;cursor:default}
+.btn-s{background:#fff;color:#555;border:1px solid #ddd;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit}
+.inp{width:100%;border:1px solid #ddd;border-radius:6px;padding:8px 12px;font-size:14px;font-family:inherit;outline:none}
+.inp:focus{border-color:#4f6df5}
+.lbl{font-size:11px;color:#888;display:block;margin-bottom:3px}
+.mono{font-family:'JetBrains Mono','SF Mono',monospace}
+.muted{color:#888;font-size:13px}
+.center{text-align:center}
+
+.vas-track{width:100%;height:8px;background:#e8eaed;border-radius:4px;cursor:pointer;position:relative;touch-action:none}
+.vas-fill{position:absolute;left:0;top:0;height:8px;background:#4f6df5;border-radius:4px}
+.vas-thumb{position:absolute;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid #4f6df5;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.vas-labels{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:#aaa}
+.progress-bar{height:4px;background:#e8eaed;border-radius:2px;margin-bottom:20px}
+.progress-fill{height:4px;background:#4f6df5;border-radius:2px;transition:width .3s}
+
+.admin-row{display:grid;grid-template-columns:36px 1fr 1.5fr 32px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.admin-row:last-child{border-bottom:none}
+.order-btn{border:none;background:none;cursor:pointer;font-size:10px;padding:0}
+.order-btn:disabled{opacity:.25;cursor:default}
+
+.video-box{background:#f8f9ff;border-radius:8px;padding:32px;text-align:center;border:1px dashed #c8d0f8}
+.video-btn{display:inline-block;background:#4f6df5;color:#fff;border:none;border-radius:6px;padding:12px 32px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;font-family:inherit}
+
+.q-row{margin-bottom:24px}
+.q-label{font-size:13px;line-height:1.6;margin-bottom:2px}
+.q-num{color:#bbb;font-family:'JetBrains Mono',monospace;font-size:11px;margin-right:6px}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:6px 8px}
+th{font-weight:600;color:#666;border-bottom:2px solid #e8eaed}
+td{border-bottom:1px solid #f0f0f0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+
+<script type="text/babel">
+const {useState, useEffect, useCallback, useRef} = React;
+
+/* ─── Config ─── */
+/* ============================================================
+   ★ ここを編集してください ★
+   GAS_URL: スプレッドシートに送信するGAS WebアプリのURL
+   VIDEOS:  各動画の条件名とGoogle DriveのURL（提示順序順）
+   ============================================================ */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxvwcY4aJ64PEy6O6Df2BT8iNUHvUCyjFajtfKEJqvNhhp_DKjFf1NuK4HlqKdX4b60wA/exec";
+
+const VIDEOS = [
+  {id:"v1",  conditionName:"ロボットあり_Interest",        driveUrl:"https://drive.google.com/file/d/18WFcx__7rtBYcU289V0V_TUb1CMzncct/view?usp=drive_link"},
+  {id:"v2",  conditionName:"ロボットあり_Co-identity",     driveUrl:""},
+  {id:"v3",  conditionName:"ロボットあり_Agreement",       driveUrl:""},
+  {id:"v4",  conditionName:"ロボットあり_Empathy",         driveUrl:""},
+  {id:"v5",  conditionName:"ロボットあり_Cooperation",     driveUrl:""},
+  {id:"v6",  conditionName:"ロボットあり_Reasonableness",  driveUrl:""},
+  {id:"v7",  conditionName:"ロボットあり_Reciprocity",     driveUrl:""},
+  {id:"v8",  conditionName:"ロボットあり_Tsukkomi",        driveUrl:""},
+  {id:"v9",  conditionName:"ロボットあり_Baseline",        driveUrl:""},
+  {id:"v10", conditionName:"ロボットなし_Interest",        driveUrl:""},
+  {id:"v11", conditionName:"ロボットなし_Co-identity",     driveUrl:""},
+  {id:"v12", conditionName:"ロボットなし_Agreement",       driveUrl:""},
+  {id:"v13", conditionName:"ロボットなし_Empathy",         driveUrl:""},
+  {id:"v14", conditionName:"ロボットなし_Cooperation",     driveUrl:""},
+  {id:"v15", conditionName:"ロボットなし_Reasonableness",  driveUrl:""},
+  {id:"v16", conditionName:"ロボットなし_Reciprocity",     driveUrl:""},
+  {id:"v17", conditionName:"ロボットなし_Tsukkomi",        driveUrl:""},
+  {id:"v18", conditionName:"ロボットなし_Baseline",        driveUrl:""},
+];
+/* ============================================================ */
+
+const FPQ_ITEMS = [
+  {id:"FA1",scale:"FA",text:"このフィードバックに満足するだろう",rev:false},
+  {id:"FA2",scale:"FA",text:"このフィードバックは公正だと思うだろう",rev:false},
+  {id:"FA3",scale:"FA",text:"このフィードバックは正当だと思うだろう",rev:false},
+  {id:"US1",scale:"US",text:"このフィードバックは役に立つと思うだろう",rev:false},
+  {id:"US2",scale:"US",text:"このフィードバックは助けになると思うだろう",rev:false},
+  {id:"US3",scale:"US",text:"このフィードバックは大いに支えになるだろう",rev:false},
+  {id:"AC1",scale:"AC",text:"このフィードバックを受け入れるだろう",rev:false},
+  {id:"AC2",scale:"AC",text:"このフィードバックに異議を唱えるだろう",rev:true},
+  {id:"AC3",scale:"AC",text:"このフィードバックを拒否するだろう",rev:true},
+  {id:"WI1",scale:"WI",text:"自分のパフォーマンスを改善しようと思うだろう",rev:false},
+  {id:"WI2",scale:"WI",text:"修正に多くの努力を注ごうと思うだろう",rev:false},
+  {id:"WI3",scale:"WI",text:"今後も同様の議論の場で発言しようと思うだろう",rev:false},
+  {id:"AF1",scale:"AF",text:"満足した気持ちになるだろう",rev:false},
+  {id:"AF2",scale:"AF",text:"嬉しい気持ちになるだろう",rev:false},
+  {id:"AF3",scale:"AF",text:"自信を持てるだろう",rev:false},
+  {id:"AF4",scale:"AF",text:"怒りを感じるだろう",rev:true},
+  {id:"AF5",scale:"AF",text:"落胆するだろう",rev:true},
+  {id:"AF6",scale:"AF",text:"不安を感じるだろう",rev:true},
+];
+
+function extractDriveId(url){
+  if(!url)return null;
+  let m=url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);if(m)return m[1];
+  m=url.match(/id=([a-zA-Z0-9_-]+)/);if(m)return m[1];
+  return null;
+}
+
+function computeScores(ans){
+  function getVal(id){const item=FPQ_ITEMS.find(q=>q.id===id);const raw=ans[id];if(raw==null)return null;return item.rev?10-raw:raw}
+  function avg(ids){const v=ids.map(getVal).filter(x=>x!==null);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*100)/100:null}
+  const FA=avg(["FA1","FA2","FA3"]),US=avg(["US1","US2","US3"]),AC=avg(["AC1","AC2","AC3"]);
+  const WI=avg(["WI1","WI2","WI3"]),AF=avg(["AF1","AF2","AF3","AF4","AF5","AF6"]);
+  const pArr=[FA,US,AC].filter(v=>v!==null);
+  const PAF=pArr.length?Math.round(pArr.reduce((a,b)=>a+b,0)/pArr.length*100)/100:null;
+  return{FA,US,AC,WI,AF,PAF};
+}
+
+async function sendGAS(gasUrl, payload){
+  if(!gasUrl)return false;
+  try{
+    const resp = await fetch(gasUrl, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(payload),
+      redirect:"follow"
+    });
+    return true;
+  }catch(e){
+    // fetch with redirect may fail due to opaque redirect, try no-cors
+    try{
+      await fetch(gasUrl, {
+        method:"POST",
+        mode:"no-cors",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify(payload)
+      });
+      return true;
+    }catch(e2){
+      console.error("GAS error:",e2);
+      return false;
+    }
+  }
+}
+
+/* ─── VAS Slider ─── */
+function VASSlider({value, onChange}){
+  const ref=useRef(null);
+  const dragging=useRef(false);
+  const update=useCallback((cx)=>{
+    if(!ref.current)return;
+    const r=ref.current.getBoundingClientRect();
+    const x=Math.max(0,Math.min(cx-r.left,r.width));
+    onChange(Math.round((x/r.width)*100)/10);
+  },[onChange]);
+
+  return(
+    <div style={{position:"relative",padding:"10px 0"}}>
+      <div ref={ref} className="vas-track"
+        onPointerDown={e=>{e.preventDefault();dragging.current=true;update(e.clientX);ref.current?.setPointerCapture(e.pointerId)}}
+        onPointerMove={e=>{if(dragging.current)update(e.clientX)}}
+        onPointerUp={()=>{dragging.current=false}}>
+        {value!==null&&<>
+          <div className="vas-fill" style={{width:(value/10*100)+"%"}}/>
+          <div className="vas-thumb" style={{left:(value/10*100)+"%"}}/>
+        </>}
+      </div>
+      <div className="vas-labels"><span>0 まったく同意しない</span><span>10 完全に同意する</span></div>
+    </div>
+  );
+}
+
+/* ─── Survey ─── */
+function Survey(){
+  const[phase,setPhase]=useState("id");
+  const[userId,setUserId]=useState("");
+  const videos=VIDEOS;
+  const gasUrl=GAS_URL;
+  const[idx,setIdx]=useState(0);
+  const[answers,setAnswers]=useState({});
+  const[submitting,setSubmitting]=useState(false);
+
+  const cur=videos[idx];
+  const allOK=FPQ_ITEMS.every(q=>answers[q.id]!=null);
+  const prog=videos.length>0?((idx+(phase==="fpq"?0.5:phase==="done"?1:0))/videos.length)*100:0;
+
+  const start=()=>{if(!userId.trim())return;if(!videos.length){alert("ビデオが未設定です");return}setPhase("video")};
+
+  const submitFPQ=async()=>{
+    setSubmitting(true);
+    const scores=computeScores(answers);
+    const payload={
+      timestamp:new Date().toISOString(),
+      userId:userId.trim(),
+      videoIndex:idx+1,
+      conditionName:cur.conditionName,
+    };
+    FPQ_ITEMS.forEach(q=>{payload[q.id]=answers[q.id]});
+    payload["公正さ_FA"]=scores.FA;
+    payload["有用性_US"]=scores.US;
+    payload["受容_AC"]=scores.AC;
+    payload["知覚的妥当性_PAF"]=scores.PAF;
+    payload["改善意欲_WI"]=scores.WI;
+    payload["感情_AF"]=scores.AF;
+    await sendGAS(gasUrl,payload);
+    if(idx+1<videos.length){setIdx(idx+1);setAnswers({});setPhase("video")}else{setPhase("done")}
+    setSubmitting(false);
+  };
+
+  if(phase==="id") return(
+    <div className="wrap" style={{maxWidth:440}}>
+      <div className="center" style={{marginTop:40}}>
+        <div style={{fontSize:32,marginBottom:8}}>📋</div>
+        <h1 style={{fontSize:20,fontWeight:700,marginBottom:4}}>FPQアンケート</h1>
+        <p className="muted" style={{marginBottom:32,lineHeight:1.7}}>動画を視聴し、各動画に対するフィードバックの印象を回答してください。</p>
+      </div>
+      <div className="card">
+        <label className="lbl" style={{textAlign:"left",marginBottom:6}}>参加者ID</label>
+        <input className="inp" value={userId} onChange={e=>setUserId(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder="例：P001" style={{textAlign:"center",fontSize:16,marginBottom:16}}/>
+        <button className="btn-p" onClick={start} disabled={!userId.trim()} style={{width:"100%",padding:"12px",fontSize:15}}>{userId.trim()?"開始する":"IDを入力してください"}</button>
+      </div>
+    </div>
+  );
+
+  if(phase==="done") return(
+    <div className="wrap center" style={{maxWidth:440,marginTop:60}}>
+      <div style={{fontSize:48,marginBottom:8}}>🎉</div>
+      <h2 style={{fontSize:20,fontWeight:700}}>すべての回答が完了しました</h2>
+      <p className="muted" style={{lineHeight:1.7,marginTop:8}}>ご協力ありがとうございました。<br/>このページを閉じていただいて構いません。</p>
+    </div>
+  );
+
+  return(
+    <div className="wrap">
+      <div style={{marginBottom:4,display:"flex",justifyContent:"space-between",fontSize:12,color:"#888"}}>
+        <span>動画 {idx+1} / {videos.length}</span>
+      </div>
+      <div className="progress-bar"><div className="progress-fill" style={{width:prog+"%"}}/></div>
+
+      {phase==="video"&&cur&&<div>
+        <div className="card">
+          <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>動画 {idx+1}</h3>
+          {cur.driveUrl?(
+            <div className="video-box">
+              <div style={{fontSize:36,marginBottom:12}}>🎬</div>
+              <p style={{fontSize:14,color:"#555",marginBottom:16}}>下のボタンを押して動画を視聴してください。<br/><span style={{fontSize:12,color:"#999"}}>（別タブで開きます）</span></p>
+              <a href={cur.driveUrl} target="_blank" rel="noopener noreferrer" className="video-btn">▶ 動画を視聴する</a>
+            </div>
+          ):(
+            <div style={{background:"#f5f5f5",borderRadius:8,padding:40,textAlign:"center",color:"#aaa"}}>動画が設定されていません</div>
+          )}
+          <p className="muted" style={{marginTop:12}}>動画を最後まで視聴してから「回答に進む」を押してください。</p>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end"}}><button className="btn-p" onClick={()=>setPhase("fpq")}>回答に進む →</button></div>
+      </div>}
+
+      {phase==="fpq"&&<div>
+        <div className="card">
+          <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>アンケート — 動画 {idx+1}</h3>
+          <p style={{fontSize:12,color:"#888",marginBottom:20}}>今の動画を第三者の視点から見て、動画内のフィードバックに対する印象をスライダーで回答してください。</p>
+          {FPQ_ITEMS.map((q,qi)=>(
+            <div key={q.id} className="q-row">
+              <div className="q-label"><span className="q-num">Q{qi+1}</span>{q.text}</div>
+              <VASSlider value={answers[q.id]??null} onChange={val=>setAnswers(prev=>({...prev,[q.id]:val}))}/>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:40}}>
+          <button className="btn-s" onClick={()=>setPhase("video")}>← 動画に戻る</button>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            {!allOK&&<span style={{fontSize:12,color:"#e77"}}>すべての項目に回答してください</span>}
+            <button className="btn-p" onClick={submitFPQ} disabled={!allOK||submitting}>
+              {submitting?"送信中...":idx+1<videos.length?"送信して次へ →":"送信して完了"}
+            </button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* ─── Main ─── */
+function App(){
+  const[started,setStarted]=useState(false);
+
+  if(started) return <Survey/>;
+
+  return(
+    <div className="wrap center" style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:"100vh"}}>
+      <div style={{maxWidth:400}}>
+        <div style={{fontSize:40,marginBottom:12}}>📋</div>
+        <h1 style={{fontSize:22,fontWeight:700,marginBottom:4}}>FPQアンケートシステム</h1>
+        <p className="muted" style={{marginBottom:36,lineHeight:1.7}}>動画視聴とフィードバック知覚質問票（FPQ）による回答を行うシステムです。</p>
+        <button className="btn-p" onClick={()=>setStarted(true)} style={{padding:"14px 24px",fontSize:15,width:"100%"}}>アンケートに回答する</button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("app")).render(<App/>);
+</script>
+</body>
+</html>
