@@ -280,7 +280,7 @@ function Survey(){
       timestamp:new Date().toISOString(),
       userId:userId.trim(),
       videoIndex:idx+1,
-      originalVideoIndex: cur.originalIndex,
+      originalVideoIndex: cur.originalVideoIndex,
       conditionName:cur.conditionName,
     };
     FPQ_ITEMS.forEach(q=>{payload[q.id]=answers[q.id]});
