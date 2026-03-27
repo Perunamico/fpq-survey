@@ -113,7 +113,42 @@ const VIDEOS = VIDEO_ORDER.map((name, i) => ({
   driveUrl: VIDEO_DB[name] || "",
 }));
 /* ============================================================ */
+/* ── 参加者ごとの提示順序（動画番号ベース） ──
+   ※ 動画番号は VIDEO_ORDER の上から順に 1〜18
+   ※ 1〜9 = human, 10〜18 = robot を前提にした順序
+*/
+const PARTICIPANT_ORDERS = {
+  "1":  [1,18,10,9,2,17,11,8,3,16,12,7,4,15,13,6,5,14],
+  "2":  [10,1,2,18,11,9,3,17,12,8,4,16,13,7,5,15,14,6],
+  "3":  [2,10,11,1,3,18,12,9,4,17,13,8,5,16,14,7,6,15],
+  "4":  [11,2,3,10,12,1,4,18,13,9,5,17,14,8,6,16,15,7],
+  "5":  [3,11,12,2,4,10,13,1,5,18,14,9,6,17,15,8,7,16],
+  "6":  [12,3,4,11,13,2,5,10,14,1,6,18,15,9,7,17,16,8],
+  "7":  [4,12,13,3,5,11,14,2,6,10,15,1,7,18,16,9,8,17],
+  "8":  [13,4,5,12,14,3,6,11,15,2,7,10,16,1,8,18,17,9],
+  "9":  [5,13,14,4,6,12,15,3,7,11,16,2,8,10,17,1,9,18],
+  "10": [14,5,6,13,15,4,7,12,16,3,8,11,17,2,9,10,18,1],
+  "11": [6,14,15,5,7,13,16,4,8,12,17,3,9,11,18,2,1,10],
+  "12": [15,6,7,14,16,5,8,13,17,4,9,12,18,3,1,11,10,2],
+  "13": [7,15,16,6,8,14,17,5,9,13,18,4,1,12,10,3,2,11],
+  "14": [16,7,8,15,17,6,9,14,18,5,1,13,10,4,2,12,11,3],
+  "15": [8,16,17,7,9,15,18,6,1,14,10,5,2,13,11,4,3,12],
+  "16": [17,8,9,16,18,7,1,15,10,6,2,14,11,5,3,13,12,4],
+  "17": [9,17,18,8,1,16,10,7,2,15,11,6,3,14,12,5,4,13],
+  "18": [18,9,1,17,10,8,2,16,11,7,3,15,12,6,4,14,13,5],
 
+  // 19, 20 は 1, 2 と同じ流れ
+  "19": [1,18,10,9,2,17,11,8,3,16,12,7,4,15,13,6,5,14],
+  "20": [10,1,2,18,11,9,3,17,12,8,4,16,13,7,5,15,14,6],
+};
+
+const DEFAULT_ORDER = Array.from({length: VIDEOS.length}, (_, i) => i + 1);
+
+function getOrderedVideos(userId){
+  const trimmed = String(userId || "").trim();
+  const order = PARTICIPANT_ORDERS[trimmed] || DEFAULT_ORDER;
+  return order.map(n => VIDEOS[n - 1]).filter(Boolean);
+}
 const FPQ_ITEMS = [
   {id:"FA1",scale:"FA",text:"このフィードバックに満足するだろう",rev:false},
   {id:"FA2",scale:"FA",text:"このフィードバックは公正だと思うだろう",rev:false},
@@ -210,7 +245,8 @@ function VASSlider({value, onChange}){
 function Survey(){
   const[phase,setPhase]=useState("id");
   const[userId,setUserId]=useState("");
-  const videos=VIDEOS;
+  const[customId,setCustomId]=useState("");
+  const videos=getOrderedVideos(userId);
   const gasUrl=GAS_URL;
   const[idx,setIdx]=useState(0);
   const[answers,setAnswers]=useState({});
@@ -220,7 +256,21 @@ function Survey(){
   const allOK=FPQ_ITEMS.every(q=>answers[q.id]!=null);
   const prog=videos.length>0?((idx+(phase==="fpq"?0.5:phase==="done"?1:0))/videos.length)*100:0;
 
-  const start=()=>{if(!userId.trim())return;if(!videos.length){alert("ビデオが未設定です");return}setPhase("video")};
+  const start=(forcedId=null)=>{
+  const finalId = String(forcedId ?? userId).trim();
+  if(!finalId) return;
+
+  const orderedVideos = getOrderedVideos(finalId);
+  if(!orderedVideos.length){
+    alert("ビデオが未設定です");
+    return;
+  }
+
+  setUserId(finalId);
+  setIdx(0);
+  setAnswers({});
+  setPhase("video");
+};
 
   const submitFPQ=async()=>{
     setSubmitting(true);
@@ -244,19 +294,63 @@ function Survey(){
   };
 
   if(phase==="id") return(
-    <div className="wrap" style={{maxWidth:440}}>
-      <div className="center" style={{marginTop:40}}>
-        <div style={{fontSize:32,marginBottom:8}}>📋</div>
-        <h1 style={{fontSize:20,fontWeight:700,marginBottom:4}}>FPQアンケート</h1>
-        <p className="muted" style={{marginBottom:32,lineHeight:1.7}}>動画を視聴し、各動画に対するフィードバックの印象を回答してください。</p>
+  <div className="wrap" style={{maxWidth:560}}>
+    <div className="center" style={{marginTop:40}}>
+      <div style={{fontSize:32,marginBottom:8}}>📋</div>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:4}}>FPQアンケート</h1>
+      <p className="muted" style={{marginBottom:32,lineHeight:1.7}}>
+        参加者IDを選択してください。<br/>
+        1〜20 はボタン選択、テスト用は自由記述で開始できます。
+      </p>
+    </div>
+
+    <div className="card">
+      <div className="lbl" style={{marginBottom:10}}>参加者ID（1〜20）</div>
+      <div style={{
+        display:"grid",
+        gridTemplateColumns:"repeat(5, 1fr)",
+        gap:"10px",
+        marginBottom:"20px"
+      }}>
+        {Array.from({length:20}, (_,i)=>String(i+1)).map(id=>(
+          <button
+            key={id}
+            className="btn-s"
+            onClick={()=>start(id)}
+            style={{padding:"12px 0", fontSize:15, fontWeight:600}}
+          >
+            {id}
+          </button>
+        ))}
       </div>
-      <div className="card">
-        <label className="lbl" style={{textAlign:"left",marginBottom:6}}>参加者ID</label>
-        <input className="inp" value={userId} onChange={e=>setUserId(e.target.value)} onKeyDown={e=>e.key==="Enter"&&start()} placeholder="例：P001" style={{textAlign:"center",fontSize:16,marginBottom:16}}/>
-        <button className="btn-p" onClick={start} disabled={!userId.trim()} style={{width:"100%",padding:"12px",fontSize:15}}>{userId.trim()?"開始する":"IDを入力してください"}</button>
+
+      <div style={{borderTop:"1px solid #eee", paddingTop:16}}>
+        <label className="lbl" style={{textAlign:"left",marginBottom:6}}>
+          テスト用・自由記述ID
+        </label>
+        <input
+          className="inp"
+          value={customId}
+          onChange={e=>setCustomId(e.target.value)}
+          onKeyDown={e=>e.key==="Enter" && customId.trim() && start(customId)}
+          placeholder="例：test / demo / P001"
+          style={{textAlign:"center",fontSize:16,marginBottom:12}}
+        />
+        <button
+          className="btn-p"
+          onClick={()=>start(customId)}
+          disabled={!customId.trim()}
+          style={{width:"100%",padding:"12px",fontSize:15}}
+        >
+          自由記述IDで開始
+        </button>
+        <p className="muted" style={{marginTop:10,fontSize:12,lineHeight:1.6}}>
+          自由記述IDでは通常順（1 → 18）で動画が提示されます。
+        </p>
       </div>
     </div>
-  );
+  </div>
+);
 
   if(phase==="done") return(
     <div className="wrap center" style={{maxWidth:440,marginTop:60}}>
