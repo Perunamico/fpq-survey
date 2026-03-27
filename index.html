@@ -62,26 +62,56 @@ const {useState, useEffect, useCallback, useRef} = React;
    ============================================================ */
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxvwcY4aJ64PEy6O6Df2BT8iNUHvUCyjFajtfKEJqvNhhp_DKjFf1NuK4HlqKdX4b60wA/exec";
 
-const VIDEOS = [
-  {id:"v1",  conditionName:"ロボットあり_Interest",        driveUrl:"https://drive.google.com/file/d/18WFcx__7rtBYcU289V0V_TUb1CMzncct/view?usp=drive_link"},
-  {id:"v2",  conditionName:"ロボットあり_Co-identity",     driveUrl:""},
-  {id:"v3",  conditionName:"ロボットあり_Agreement",       driveUrl:""},
-  {id:"v4",  conditionName:"ロボットあり_Empathy",         driveUrl:""},
-  {id:"v5",  conditionName:"ロボットあり_Cooperation",     driveUrl:""},
-  {id:"v6",  conditionName:"ロボットあり_Reasonableness",  driveUrl:""},
-  {id:"v7",  conditionName:"ロボットあり_Reciprocity",     driveUrl:""},
-  {id:"v8",  conditionName:"ロボットあり_Tsukkomi",        driveUrl:""},
-  {id:"v9",  conditionName:"ロボットあり_Baseline",        driveUrl:""},
-  {id:"v10", conditionName:"ロボットなし_Interest",        driveUrl:""},
-  {id:"v11", conditionName:"ロボットなし_Co-identity",     driveUrl:""},
-  {id:"v12", conditionName:"ロボットなし_Agreement",       driveUrl:""},
-  {id:"v13", conditionName:"ロボットなし_Empathy",         driveUrl:""},
-  {id:"v14", conditionName:"ロボットなし_Cooperation",     driveUrl:""},
-  {id:"v15", conditionName:"ロボットなし_Reasonableness",  driveUrl:""},
-  {id:"v16", conditionName:"ロボットなし_Reciprocity",     driveUrl:""},
-  {id:"v17", conditionName:"ロボットなし_Tsukkomi",        driveUrl:""},
-  {id:"v18", conditionName:"ロボットなし_Baseline",        driveUrl:""},
+/* ── 動画の定義（順番は気にせず登録） ── */
+const VIDEO_DB = {
+  "ロボあり_Interest":       "https://drive.google.com/file/d/18WFcx__7rtBYcU289V0V_TUb1CMzncct/view?usp=drive_link",
+  "ロボあり_Co-identity":    "",
+  "ロボあり_Agreement":      "",
+  "ロボあり_Empathy":        "",
+  "ロボあり_Cooperation":    "",
+  "ロボあり_Reasonableness": "",
+  "ロボあり_Reciprocity":    "",
+  "ロボあり_Tsukkomi":       "",
+  "ロボあり_Baseline":       "",
+  "ロボなし_Interest":       "",
+  "ロボなし_Co-identity":    "",
+  "ロボなし_Agreement":      "",
+  "ロボなし_Empathy":        "",
+  "ロボなし_Cooperation":    "",
+  "ロボなし_Reasonableness": "",
+  "ロボなし_Reciprocity":    "",
+  "ロボなし_Tsukkomi":       "",
+  "ロボなし_Baseline":       "",
+};
+
+/* ── ★ 提示順序（ここの並びを変えるだけ！）★ ── */
+const VIDEO_ORDER = [
+  "ロボあり_Interest",
+  "ロボあり_Co-identity",
+  "ロボあり_Agreement",
+  "ロボあり_Empathy",
+  "ロボあり_Cooperation",
+  "ロボあり_Reasonableness",
+  "ロボあり_Reciprocity",
+  "ロボあり_Tsukkomi",
+  "ロボあり_Baseline",
+  "ロボなし_Interest",
+  "ロボなし_Co-identity",
+  "ロボなし_Agreement",
+  "ロボなし_Empathy",
+  "ロボなし_Cooperation",
+  "ロボなし_Reasonableness",
+  "ロボなし_Reciprocity",
+  "ロボなし_Tsukkomi",
+  "ロボなし_Baseline",
 ];
+
+/* ── 上の2つから自動生成（編集不要）── */
+const VIDEOS = VIDEO_ORDER.map((name, i) => ({
+  id: "v" + (i + 1),
+  conditionName: name,
+  driveUrl: VIDEO_DB[name] || "",
+}));
 /* ============================================================ */
 
 const FPQ_ITEMS = [
