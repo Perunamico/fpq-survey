@@ -109,6 +109,7 @@ const VIDEO_ORDER = [
 /* ── 上の2つから自動生成（編集不要）── */
 const VIDEOS = VIDEO_ORDER.map((name, i) => ({
   id: "v" + (i + 1),
+  originalIndex: i + 1,
   conditionName: name,
   driveUrl: VIDEO_DB[name] || "",
 }));
@@ -279,6 +280,7 @@ function Survey(){
       timestamp:new Date().toISOString(),
       userId:userId.trim(),
       videoIndex:idx+1,
+      originalVideoIndex: cur.originalIndex,
       conditionName:cur.conditionName,
     };
     FPQ_ITEMS.forEach(q=>{payload[q.id]=answers[q.id]});
