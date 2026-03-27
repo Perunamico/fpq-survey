@@ -243,11 +243,14 @@ function VASSlider({value, onChange}){
 }
 
 /* ─── Survey ─── */
+/* ─── Survey ─── */
 function Survey(){
   const[phase,setPhase]=useState("id");
   const[userId,setUserId]=useState("");
   const[customId,setCustomId]=useState("");
-  const videos=getOrderedVideos(userId);
+  const[resumeData,setResumeData]=useState(null); // ★追加：再開データ保持用
+  
+  const videos=getOrderedVideos(resumeData ? resumeData.id : userId);
   const gasUrl=GAS_URL;
   const[idx,setIdx]=useState(0);
   const[answers,setAnswers]=useState({});
@@ -257,22 +260,50 @@ function Survey(){
   const allOK=FPQ_ITEMS.every(q=>answers[q.id]!=null);
   const prog=videos.length>0?((idx+(phase==="fpq"?0.5:phase==="done"?1:0))/videos.length)*100:0;
 
+  // ★変更：ID入力時の処理（進行度チェック）
   const start=(forcedId=null)=>{
-  const finalId = String(forcedId ?? userId).trim();
-  if(!finalId) return;
+    const finalId = String(forcedId ?? userId).trim();
+    if(!finalId) return;
 
-  const orderedVideos = getOrderedVideos(finalId);
-  if(!orderedVideos.length){
-    alert("ビデオが未設定です");
-    return;
-  }
+    const orderedVideos = getOrderedVideos(finalId);
+    if(!orderedVideos.length){
+      alert("ビデオが未設定です");
+      return;
+    }
 
-  setUserId(finalId);
-  setIdx(0);
-  setAnswers({});
-  setPhase("video");
-};
+    // ブラウザの保存データを確認
+    const saved = localStorage.getItem("fpq_progress_" + finalId);
+    if(saved) {
+      // 途中のデータがあれば確認画面へ
+      setResumeData({ 
+        id: finalId, 
+        savedIdx: saved === "done" ? "done" : parseInt(saved, 10) 
+      });
+      return;
+    }
 
+    // 新規スタート
+    startActual(finalId, 0);
+  };
+
+  // ★追加：実際にアンケートを開始する処理
+  const startActual = (id, startIdx) => {
+    setUserId(id);
+    setIdx(startIdx);
+    setAnswers({});
+    setResumeData(null);
+    setPhase("video");
+  };
+
+  // ★追加：最初からやり直す処理
+  const handleRestart = () => {
+    if(confirm("本当に最初からやり直しますか？\n（これまで送信したデータはスプレッドシートに残りますが、同じIDで重複して記録されます）")) {
+      localStorage.removeItem("fpq_progress_" + resumeData.id);
+      startActual(resumeData.id, 0);
+    }
+  };
+
+  // ★変更：送信完了時に進行度を保存する
   const submitFPQ=async()=>{
     setSubmitting(true);
     const scores=computeScores(answers);
@@ -290,75 +321,127 @@ function Survey(){
     payload["知覚的妥当性_PAF"]=scores.PAF;
     payload["改善意欲_WI"]=scores.WI;
     payload["感情_AF"]=scores.AF;
+    
     await sendGAS(gasUrl,payload);
-    if(idx+1<videos.length){setIdx(idx+1);setAnswers({});setPhase("video")}else{setPhase("done")}
+    
+    if(idx+1<videos.length){
+      setIdx(idx+1);
+      setAnswers({});
+      setPhase("video");
+      // ★追加：次のインデックスを保存
+      localStorage.setItem("fpq_progress_" + userId.trim(), idx+1);
+    }else{
+      setPhase("done");
+      // ★追加：完了状態を保存
+      localStorage.setItem("fpq_progress_" + userId.trim(), "done");
+    }
     setSubmitting(false);
   };
 
-  if(phase==="id") return(
-  <div className="wrap" style={{maxWidth:560}}>
-    <div className="center" style={{marginTop:40}}>
-      <div style={{fontSize:32,marginBottom:8}}>📋</div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:4}}>FPQアンケート</h1>
-      <p className="muted" style={{marginBottom:32,lineHeight:1.7}}>
-        参加者IDを選択してください。<br/>
-        1〜20 はボタン選択、テスト用は自由記述で開始できます。
-      </p>
-    </div>
+  // ★追加：再開確認画面のUI
+  if(resumeData) return(
+    <div className="wrap" style={{maxWidth:500}}>
+      <div className="card center" style={{marginTop:40, padding:"40px 24px"}}>
+        <div style={{fontSize:36,marginBottom:12}}>💾</div>
+        <h2 style={{fontSize:18,fontWeight:700,marginBottom:16}}>前回のデータが見つかりました</h2>
+        
+        {resumeData.savedIdx === "done" ? (
+          <p className="muted" style={{marginBottom:24,lineHeight:1.6}}>
+            ID「{resumeData.id}」はすでにすべての回答が完了しています。
+          </p>
+        ) : (
+          <p className="muted" style={{marginBottom:24,lineHeight:1.6}}>
+            ID「{resumeData.id}」の途中データがあります。<br/>
+            <strong>動画 {resumeData.savedIdx + 1}</strong> から回答を再開しますか？
+          </p>
+        )}
 
-    <div className="card">
-      <div className="lbl" style={{marginBottom:10}}>参加者ID（1〜20）</div>
-      <div style={{
-        display:"grid",
-        gridTemplateColumns:"repeat(5, 1fr)",
-        gap:"10px",
-        marginBottom:"20px"
-      }}>
-        {Array.from({length:20}, (_,i)=>String(i+1)).map(id=>(
-          <button
-            key={id}
-            className="btn-s"
-            onClick={()=>start(id)}
-            style={{padding:"12px 0", fontSize:15, fontWeight:600}}
-          >
-            {id}
+        <div style={{display:"flex", flexDirection:"column", gap:12}}>
+          {resumeData.savedIdx !== "done" && (
+            <button className="btn-p" onClick={()=>startActual(resumeData.id, resumeData.savedIdx)} style={{padding:"12px"}}>
+              続きから再開する
+            </button>
+          )}
+          <button className="btn-s" onClick={handleRestart} style={{padding:"12px", color:"#e55", borderColor:"#fcc"}}>
+            最初からやり直す
           </button>
-        ))}
+          <button className="btn-s" onClick={()=>setResumeData(null)} style={{padding:"12px", marginTop:12, border:"none", background:"transparent"}}>
+            ← ID選択に戻る
+          </button>
+        </div>
       </div>
+    </div>
+  );
 
-      <div style={{borderTop:"1px solid #eee", paddingTop:16}}>
-        <label className="lbl" style={{textAlign:"left",marginBottom:6}}>
-          テスト用・自由記述ID
-        </label>
-        <input
-          className="inp"
-          value={customId}
-          onChange={e=>setCustomId(e.target.value)}
-          onKeyDown={e=>e.key==="Enter" && customId.trim() && start(customId)}
-          placeholder="例：test / demo / P001"
-          style={{textAlign:"center",fontSize:16,marginBottom:12}}
-        />
-        <button
-          className="btn-p"
-          onClick={()=>start(customId)}
-          disabled={!customId.trim()}
-          style={{width:"100%",padding:"12px",fontSize:15}}
-        >
-          自由記述IDで開始
-        </button>
-        <p className="muted" style={{marginTop:10,fontSize:12,lineHeight:1.6}}>
-          自由記述IDでは通常順（1 → 18）で動画が提示されます。
+  if(phase==="id") return(
+    <div className="wrap" style={{maxWidth:560}}>
+      <div className="center" style={{marginTop:40}}>
+        <div style={{fontSize:32,marginBottom:8}}>📋</div>
+        <h1 style={{fontSize:20,fontWeight:700,marginBottom:4}}>FPQアンケート</h1>
+        <p className="muted" style={{marginBottom:32,lineHeight:1.7}}>
+          参加者IDを選択してください。<br/>
+          1〜20 はボタン選択、テスト用は自由記述で開始できます。
         </p>
       </div>
+
+      <div className="card">
+        <div className="lbl" style={{marginBottom:10}}>参加者ID（1〜20）</div>
+        <div style={{
+          display:"grid",
+          gridTemplateColumns:"repeat(5, 1fr)",
+          gap:"10px",
+          marginBottom:"20px"
+        }}>
+          {Array.from({length:20}, (_,i)=>String(i+1)).map(id=>(
+            <button
+              key={id}
+              className="btn-s"
+              onClick={()=>start(id)}
+              style={{padding:"12px 0", fontSize:15, fontWeight:600}}
+            >
+              {id}
+            </button>
+          ))}
+        </div>
+
+        <div style={{borderTop:"1px solid #eee", paddingTop:16}}>
+          <label className="lbl" style={{textAlign:"left",marginBottom:6}}>
+            テスト用・自由記述ID
+          </label>
+          <input
+            className="inp"
+            value={customId}
+            onChange={e=>setCustomId(e.target.value)}
+            onKeyDown={e=>e.key==="Enter" && customId.trim() && start(customId)}
+            placeholder="例：test / demo / P001"
+            style={{textAlign:"center",fontSize:16,marginBottom:12}}
+          />
+          <button
+            className="btn-p"
+            onClick={()=>start(customId)}
+            disabled={!customId.trim()}
+            style={{width:"100%",padding:"12px",fontSize:15}}
+          >
+            自由記述IDで開始
+          </button>
+          <p className="muted" style={{marginTop:10,fontSize:12,lineHeight:1.6}}>
+            自由記述IDでは通常順（1 → 18）で動画が提示されます。
+          </p>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
 
   if(phase==="done") return(
     <div className="wrap center" style={{maxWidth:440,marginTop:60}}>
       <div style={{fontSize:48,marginBottom:8}}>🎉</div>
       <h2 style={{fontSize:20,fontWeight:700}}>すべての回答が完了しました</h2>
       <p className="muted" style={{lineHeight:1.7,marginTop:8}}>ご協力ありがとうございました。<br/>このページを閉じていただいて構いません。</p>
+      
+      {/* 完了画面にもやり直しボタンを置きたい場合は追加 */}
+      <button className="btn-s" onClick={()=>setPhase("id")} style={{marginTop:32}}>
+        ← トップに戻る
+      </button>
     </div>
   );
 
